@@ -1,8 +1,8 @@
 #---------------------------------------------
 # Checkers Piece Classes for Checkers AI
-# Created By: Adam Labiosa and Luke Selberg
+# Created By: Adam Labiosa
 # Inspration From: Jonathan Zia
-# Last Edited: 2020
+# Last Edited: 2021
 # University of Wisconsin - Madison
 # ----------------------------------------------------
 import tensorflow as tf
@@ -15,384 +15,12 @@ import copy as c
 import math
 import os
 
-
 #---------------------------------------------
-# Pawn Class
+# Normal Piece Class
 #---------------------------------------------
-class Pawn():
+class Piece():
 
-	"""Defining attributes of pawn piece"""
-
-	def __init__(self, color, start_file, start_rank):
-
-		"""Defining initial attributes of piece"""
-
-		# Piece Attributes
-		self.name = 'Pawn'		# Name
-		self.symbol = ''		# Algebraic notation symbol
-		self.value = 1			# Value (1 for pawn)
-		self.color = color		# Color
-		self.is_active = True	# Active/Inactive
-
-		# Starting Position
-		# File = vertical column (a = 1 = queenside ... h = 8 = kingside)
-		# Rank = horizontal row (1 = white ... 8 = black)
-		self.start_file = start_file
-		self.start_rank = start_rank
-		# Initializing move counter (increment when moved)
-		self.move_count = 0
-
-		# Current Position
-		self.file = start_file
-		self.rank = start_rank
-
-
-	# Returning numpy array with possible actions for piece
-	# Array format:
-	# [[file1 rank1]
-	#  [file2 rank2]...]
-	def actions(self, piece_list, return_coordinates=False):
-
-		"""Determining possible actions for piece"""
-
-		# Requires:	piece_list
-		# Returns:	numpy array
-
-		# The pawn may move up to two spaces forward on its first move
-		# and one space forward on each subsequent move. It may move 
-		# one space in the forward diagonal direction if attacking an
-		# enemy piece.
-
-		# IF THE PIECE IS A PAWN (HAS NOT BEEN PROMOTED)
-		if self.name == 'Pawn':
-
-			# For each vector in movement array:
-			# (1) For forward movement, there is no piece in the path and index is in bounds
-			# (2) For attack movement, there must be a piece of a different color in path
-			# (3) For moving forward 2 spaces, move_count must equal 0
-
-			# Initialize action vector:
-			# [1 forward, 2 forward, attack (+file), attack (-file), promotion, 51 zeros]
-			action_space = np.zeros((1,56))
-
-			# Initialize coordinate vector
-			coordinates = []
-
-			if self.is_active:
-
-				if self.color == 'white':
-					# Initialize movement vector array (file, rank)
-					movement = np.array([[0,1],[0,2],[1,1],[-1,1]])
-
-					for i in range(0,4):
-							# Condition (1)
-							if i == 0 and 0 < self.file+movement[i,0] < 9 and 0 < self.rank+movement[i,1] < 9:
-								blocked = False
-								for piece in piece_list:
-									if piece.is_active and piece.file == self.file+movement[i,0] and piece.rank == self.rank+movement[i,1]:
-										blocked = True
-										break
-								if blocked == False:
-									coordinates.append([self.file+movement[i,0], self.rank+movement[i,1]])
-									action_space[0,i] = 1
-							# Condition (2)
-							if i == 2 or i == 3:
-								if 0 < self.file+movement[i,0] < 9 and 0 < self.rank+movement[i,1] < 9:
-									for piece in piece_list:
-										if piece.is_active and piece.color != self.color and piece.file == self.file+movement[i,0] and piece.rank == self.rank+movement[i,1]:
-											coordinates.append([self.file+movement[i,0], self.rank+movement[i,1]])
-											action_space[0,i] = 1
-											break
-							# Condition (3)
-							if i == 1 and self.move_count == 0:
-								for piece in piece_list:
-									blocked = False
-									if piece.is_active and piece.file == self.file+movement[i,0] and piece.rank == self.rank+movement[i,1]:
-										blocked = True
-										break
-									elif piece.is_active and piece.file == self.file+movement[i,0] and piece.rank == self.rank+movement[i,1]-1:
-										blocked = True
-										break
-								if blocked == False:
-									coordinates.append([self.file+movement[i,0], self.rank+movement[i,1]])
-									action_space[0,i] = 1
-				if self.color == 'black':
-					# Initialize movement vector array (file, rank)
-					movement = np.array([[0,-1],[0,-2],[1,-1],[-1,-1]])
-
-					for i in range(0,4):
-							# Condition (1)
-							if i == 0 and 0 < self.file+movement[i,0] < 9 and 0 < self.rank+movement[i,1] < 9:
-								for piece in piece_list:
-									blocked = False
-									if piece.is_active and piece.file == self.file+movement[i,0] and piece.rank == self.rank+movement[i,1]:
-										blocked = True
-										break
-								if blocked == False:
-									coordinates.append([self.file+movement[i,0], self.rank+movement[i,1]])
-									action_space[0,i] = 1
-							# Condition (2)
-							if i == 2 or i == 3:
-								if 0 < self.file+movement[i,0] < 9 and 0 < self.rank+movement[i,1] < 9:
-									for piece in piece_list:
-										if piece.is_active and piece.color != self.color and piece.file == self.file+movement[i,0] and piece.rank == self.rank+movement[i,1]:
-											coordinates.append([self.file+movement[i,0], self.rank+movement[i,1]])
-											action_space[0,i] = 1
-											break
-							# Condition (3)
-							if i == 1 and self.move_count == 0:
-								for piece in piece_list:
-									blocked = False
-									if piece.is_active and piece.file == self.file+movement[i,0] and piece.rank == self.rank+movement[i,1]:
-										blocked = True
-										break
-									elif piece.is_active and piece.file == self.file+movement[i,0] and piece.rank == self.rank+movement[i,1]+1:
-										blocked = True
-										break
-								if blocked == False:
-									coordinates.append([self.file+movement[i,0], self.rank+movement[i,1]])
-									action_space[0,i] = 1
-
-				# Can pawn promote to queen?
-				Promote = False
-				# If the pawn is white and has rank 8 or is black and has rank 1, it can promote to queen
-				if self.color == 'white' and self.rank == 8:
-					Promote = True
-				elif self.color == 'black' and self.rank == 1:
-					Promote = True
-				# If AttackRight is True, append special coordinates
-				if Promote:
-					coordinates.append([0, 0])
-					action_space[0,4] = 1
-
-				# Convert coordinates to numpy array
-				coordinates = np.asarray(coordinates)
-
-			# Return possible moves
-			if return_coordinates:
-				return coordinates
-			else:
-				return action_space
-
-
-		# IF THE PIECE IS A QUEEN (HAS BEEN PROMOTED)
-		else:
-
-			# The queen's movement is a combination of bishop and rook
-
-			# VERTICAL/HORIZONTAL
-			# For each tile along one of the four movement vectors, append coordinate if:
-			# (1) The index is in bounds
-			# (2) There is no piece of the same color
-			# (3) There was no piece of the opposite color in the preceding step
-
-			# Initialize action vector:
-			# [1-7 +f, 1-7 -f, 1-7 +r, 1-7 -r, 1-7 +f/+r, 1-7 +f/-r, 1-7 -f/+r, 1-7 -f/-r]
-			action_space = np.zeros((1,56))
-
-			# Initialize coordinate aray
-			coordinates = []
-
-			if self.is_active:
-
-				# Initialize movement vector array (file, rank)
-				movement = np.array([[1,0],[-1,0],[0,1],[0,-1]])
-
-				for i in range(0,4):
-					break_loop = False
-					for j in range(1,8):
-						# Condition (1)
-						if 0 < self.file+j*movement[i,0] < 9 and 0 < self.rank+j*movement[i,1] < 9:
-							for piece in piece_list:
-								# Condition 2
-								if piece.is_active and piece.color == self.color and piece.file == self.file+j*movement[i,0] and piece.rank == self.rank+j*movement[i,1]:
-									break_loop = True
-								# Condition 3
-								if piece.is_active and piece.color != self.color and piece.file == self.file+(j-1)*movement[i,0] and piece.rank == self.rank+(j-1)*movement[i,1]:
-									break_loop = True
-						else: # If the index is no longer in bounds, break
-							break
-						if break_loop: # If the break_loop was thrown, break
-							break
-						# If the break_loop was not thrown, append coordinates
-						coordinates.append([self.file+j*movement[i,0], self.rank+j*movement[i,1]])
-						action_space[0,7*i+(j-1)] = 1
-
-				# DIAGONAL
-				# For each tile along one of the four movement vectors, append coordinate if:
-				# (1) The index is in bounds
-				# (2) There is no piece of the same color
-				# (3) There was no piece of the opposite color in the preceding step
-
-				# Initialize movement vector array (file, rank)
-				movement = np.array([[1,1],[1,-1],[-1,1],[-1,-1]])
-
-				for i in range(0,4):
-					break_loop = False
-					for j in range(1,8):
-						# Condition (1)
-						if 0 < self.file+j*movement[i,0] < 9 and 0 < self.rank+j*movement[i,1] < 9:
-							for piece in piece_list:
-								# Condition 2
-								if piece.is_active and piece.color == self.color and piece.file == self.file+j*movement[i,0] and piece.rank == self.rank+j*movement[i,1]:
-									break_loop = True
-								# Condition 3
-								if piece.is_active and piece.color != self.color and piece.file == self.file+(j-1)*movement[i,0] and piece.rank == self.rank+(j-1)*movement[i,1]:
-									break_loop = True
-						else: # If the index is no longer in bounds, break
-							break
-						if break_loop: # If the break_loop was thrown, break
-							break
-						# If the break_loop was not thrown, append coordinates
-						coordinates.append([self.file+j*movement[i,0], self.rank+j*movement[i,1]])
-						action_space[0,7*i+(j-1)+28] = 1
-
-				# Convert coordinates to numpy array
-				coordinates = np.asarray(coordinates)
-
-			# Return possible moves
-			if return_coordinates:
-				return coordinates
-			else:
-				return action_space
-
-
-	def move(self, action, piece_list, print_move=False, algebraic=True):
-
-		"""Moving piece's position"""
-
-		# Requires:	(1) action (element of action vector), (2) piece list, (3) print move? (4) algebraic notation?
-		# Returns:	void
-
-		# Initializing placeholder
-		promoted = False
-		# Temporarily save old position for the purposes of algebraic notation
-		old_rank = self.rank
-		old_file = self.file
-
-		# IF THE PIECE IS A PAWN (HAS NOT BEEN PROMOTED)
-		if self.name == "Pawn":
-
-			# Action vector:
-			# [1 forward, 2 forward, attack (+file), attack (-file), promotion, 51 zeros]
-
-			# Move 1 forward
-			if action == 0:
-				if self.color == 'white':
-					self.rank = self.rank+1
-				else:
-					self.rank = self.rank-1
-			# Move 2 forward
-			elif action == 1:
-				if self.color == 'white':
-					self.rank = self.rank+2
-				else:
-					self.rank = self.rank-2
-			# Attack (+file)
-			elif action == 2:
-				if self.color == 'white':
-					self.file = self.file+1
-					self.rank = self.rank+1
-				else:
-					self.file = self.file+1
-					self.rank = self.rank-1
-			# Attack (-file)
-			elif action == 3:
-				if self.color == 'white':
-					self.file = self.file-1
-					self.rank = self.rank+1
-				else:
-					self.file = self.file-1
-					self.rank = self.rank-1
-			# Promote to queen
-			else:
-				promoted = True
-				self.name = 'Queen'
-				self.symbol = 'Q'
-				self.value = 9
-
-
-		# IF THE PIECE IS A QUEEN (HAS BEEN PROMOTED)
-		else:
-
-			# Action vector:
-			# [1-7 +f, 1-7 -f, 1-7 +r, 1-7 -r, 1-7 +f/+r, 1-7 +f/-r, 1-7 -f/+r, 1-7 -f/-r]
-
-			# +file movements
-			if 0 <= action < 7:
-				self.file = self.file + (action+1)
-			# -file movements
-			elif 7 <= action < 14:
-				self.file = self.file - (action-6)
-			# +rank movements
-			elif 14 <= action < 21:
-				self.rank = self.rank + (action-13)
-			# -rank movements
-			elif 21 <= action < 28:
-				self.rank = self.rank - (action-20)
-			# +f/+r movements
-			elif 28 <= action < 35:
-				self.file = self.file + (action-27)
-				self.rank = self.rank + (action-27)
-			# +f/-r movements
-			elif 35 <= action < 42:
-				self.file = self.file + (action-34)
-				self.rank = self.rank - (action-34)
-			# -f/+r movements
-			elif 42 <= action < 49:
-				self.file = self.file - (action-41)
-				self.rank = self.rank + (action-41)
-			# -f/-r movements
-			else:
-				self.file = self.file - (action-48)
-				self.rank = self.rank - (action-48)
-
-
-		# Increment move counter
-		self.move_count += 1
-
-		# If a piece was in the destination tile, remove the piece
-		piece_remove = False
-		for piece in piece_list:
-			if piece.is_active and piece.color != self.color and piece.file == self.file and piece.rank == self.rank:
-				piece.remove()
-				piece_remove = True
-				remove_name = piece.name
-				break
-
-		# Print movement if indicated
-		file_list = ['a','b','c','d','e','f','g','h']
-		if print_move and (algebraic == False):
-			if promoted:
-				print(self.name + "promoted to queen")
-			elif piece_remove:
-				print(self.name + " to " + str(self.file) + "," + str(self.rank) + " taking " + remove_name)
-			else:
-				print(self.name + " to " + str(self.file) + "," + str(self.rank))
-		elif print_move and algebraic:
-			if promoted:
-				print(file_list[self.file-1] + str(self.rank) + "=" + self.symbol)
-			elif piece_remove:
-				print(self.symbol + file_list[old_file-1] + str(old_rank)+ " x " + file_list[self.file-1] + str(self.rank))
-			else:
-				print(self.symbol + file_list[old_file-1] + str(old_rank) + "-" + file_list[self.file-1] + str(self.rank))
-
-
-	def remove(self):
-
-		"""Removing piece from board"""
-
-		# Requires:	none
-		# Returns:	void
-		self.is_active = False
-
-
-#---------------------------------------------
-# Bishiop Class
-#---------------------------------------------
-class Bishop():
-
-	"""Defining attributes of bishop piece"""
+	"""Defining attributes of a piece"""
 
 	def __init__(self, color, start_file, start_rank):
 
@@ -400,8 +28,8 @@ class Bishop():
 
 		# Piece Attributes
 		self.name = 'Piece'	# Name
-		self.symbol = 'N'		# Symbol for algebraic notation
-		self.value = 1			# Value (3 for bishop)
+		self.symbol = 'P'		# Symbol for algebraic notation
+		self.value = 1			# Value (1 for normal piece)
 		self.color = color		# Color
 		self.is_active = True	# Active/Inactive
 
@@ -429,7 +57,7 @@ class Bishop():
 		# Requires: piece_list
 		# Returns: numpy array
 
-		# The bishop can move diagonally in any direction.
+		# The piece can move diagonally forward by one square, or two if capturing.
 
 		# For each tile along one of the four movement vectors, append coordinate if:
 		# (1) The index is in bounds
@@ -437,45 +65,269 @@ class Bishop():
 		# (3) There was no piece of the opposite color in the preceding step
 
 		# Initialize action vector:
-		# [1-7 +f/+r, 1-7 +f/-r, 1-7 -f/+r, 1-7 -f/-r, 28 zeros]
-		action_space = np.zeros((1,56))
+		# [Forward left, Forward right, Jump Left, Jump Right, 4 zeros]
+		if self.name=='Piece':
 
-		# Initialize coordinate aray
-		coordinates = []
+			action_space = np.zeros((1,8))
 
-		if self.is_active:
+			# Initialize coordinate aray
+			coordinates = []
 
-			# Initialize movement vector array (file, rank)
-			movement = np.array([[1,1],[1,-1],[-1,1],[-1,-1]])
+			if self.is_active:
 
-			for i in range(0,4):
-				break_loop = False
-				for j in range(1,8):
-					# Condition (1)
-					if 0 < self.file+j*movement[i,0] < 9 and 0 < self.rank+j*movement[i,1] < 9:
+				# color = white
+				if self.color == 'white':
+
+					# if in range and no piece left
+					pos_left_move = False
+					if self.file-1 > 0 and self.rank+1 < 9: # in range
+						pos_left_move = True
 						for piece in piece_list:
-							# Condition 2
-							if piece.is_active and piece.color == self.color and piece.file == self.file+j*movement[i,0] and piece.rank == self.rank+j*movement[i,1]:
-								break_loop = True
-							# Condition 3
-							if piece.is_active and piece.color != self.color and piece.file == self.file+(j-1)*movement[i,0] and piece.rank == self.rank+(j-1)*movement[i,1]:
-								break_loop = True
-					else: # If the index is no longer in bounds, break
-						break
-					if break_loop: # If the break_loop was thrown, break
-						break
-					# If the break_loop was not thrown, append coordinates
-					coordinates.append([self.file+j*movement[i,0], self.rank+j*movement[i,1]])
-					action_space[0,7*i+(j-1)] = 1
+							if piece.is_active and piece.file==self.file-1 and piece.rank==self.rank+1:
+								# is a piece in the way
+								pos_left_move = False
 
-			# Convert coordinates to numpy array
-			coordinates = np.asarray(coordinates)
+					# if in range and no piece right add
+					pos_right_move = False
+					if self.file+1 < 9 and self.rank+1 < 9: # in range
+						pos_right_move = True
+						for piece in piece_list:
+							if piece.is_active and piece.file==self.file+1 and piece.rank==self.rank+1:
+								# is a piece in the way
+								pos_right_move = False
 
-		# Return possible moves
-		if return_coordinates:
-			return coordinates
+					# if piece left and jump possible add
+					pos_left_jump = False
+					if self.file-2 > 0 and self.rank+2 < 9: # in range
+						for piece in piece_list:
+							if piece.is_active and piece.file==self.file-1 and piece.rank==self.rank+1 and piece.color!=self.color:
+								# there is a piece to jump
+								pos_left_jump = True
+						for piece in piece_list:
+							if piece.is_active and piece.file==self.file-2 and piece.rank==self.rank+2:
+								# there is a piece to jump
+								pos_left_jump = False
+
+
+					# if piece right and jump possible add
+					pos_right_jump = False
+					if self.file+2 < 9 and self.rank+2 < 9: # in range
+						for piece in piece_list:
+							if piece.is_active and piece.file==self.file+1 and piece.rank==self.rank+1 and piece.color!=self.color:
+								# there is a piece to jump
+								pos_right_jump = True
+						for piece in piece_list:
+							if piece.is_active and piece.file==self.file+2 and piece.rank==self.rank+2:
+								# there is a piece to jump
+								pos_right_jump = False
+
+				# color = black
+				if self.color == 'black':
+
+					# if in range and no piece left
+					pos_left_move = False
+					if self.file-1 > 0 and self.rank-1 > 0: # in range
+						pos_left_move = True
+						for piece in piece_list:
+							if piece.is_active and piece.file==self.file-1 and piece.rank==self.rank-1:
+								# is a piece in the way
+								pos_left_move = False
+
+					# if in range and no piece right add
+					pos_right_move = False
+					if self.file+1 < 9 and self.rank-1 > 0: # in range
+						pos_right_move = True
+						for piece in piece_list:
+							if piece.is_active and piece.file==self.file+1 and piece.rank==self.rank-1:
+								# is a piece in the way
+								pos_right_move = False
+
+					# if piece left and jump possible add
+					pos_left_jump = False
+					if self.file-2 > 0 and self.rank-2 > 0: # in range
+						for piece in piece_list:
+							if piece.is_active and piece.file==self.file-1 and piece.rank==self.rank-1 and piece.color!=self.color:
+								# there is a piece to jump
+								pos_left_jump = True
+						for piece in piece_list:
+							if piece.is_active and piece.file==self.file-2 and piece.rank==self.rank-2:
+								# there is a piece to jump
+								pos_left_jump = False
+
+
+					# if piece right and jump possible add
+					pos_right_jump = False
+					if self.file+2 < 9 and self.rank-2 > 0: # in range
+						for piece in piece_list:
+							if piece.is_active and piece.file==self.file+1 and piece.rank==self.rank-1 and piece.color!=self.color:
+								# there is a piece to jump
+								pos_right_jump = True
+						for piece in piece_list:
+							if piece.is_active and piece.file==self.file+2 and piece.rank==self.rank-2:
+								# there is a piece to jump
+								pos_right_jump = False
+
+
+				if pos_left_move:
+					action_space[0, 0] = 1
+					coordinates.append([self.file-1, self.rank+1])
+				if pos_right_move:
+					action_space[0, 1] = 1
+					coordinates.append([self.file+1, self.rank+1])
+				if pos_left_jump:
+					action_space[0, 2] = 1
+					coordinates.append([self.file-2, self.rank+2])
+				if pos_right_jump:
+					action_space[0, 3] = 1
+					coordinates.append([self.file+2, self.rank+2])
+
+				# Convert coordinates to numpy array
+				coordinates = np.asarray(coordinates)
+
+			# Return possible moves
+			if return_coordinates:
+				return coordinates
+			else:
+				return action_space
+
+		# IS KING
 		else:
-			return action_space
+
+			action_space = np.zeros((1,8))
+
+			# Initialize coordinate aray
+			coordinates = []
+
+			if self.is_active:
+
+				# UP
+
+				# if in range and no piece left
+				pos_left_move_up = False
+				if self.file-1 > 0 and self.rank+1 < 9: # in range
+					pos_left_move_up = True
+					for piece in piece_list:
+						if piece.is_active and piece.file==self.file-1 and piece.rank==self.rank+1:
+							# is a piece in the way
+							pos_left_move_up = False
+
+				# if in range and no piece right add
+				pos_right_move_up = False
+				if self.file+1 < 9 and self.rank+1 < 9: # in range
+					pos_right_move_up = True
+					for piece in piece_list:
+						if piece.is_active and piece.file==self.file+1 and piece.rank==self.rank+1:
+							# is a piece in the way
+							pos_right_move_up = False
+
+				# if piece left and jump possible add
+				pos_left_jump_up = False
+				if self.file-2 > 0 and self.rank+2 < 9: # in range
+					for piece in piece_list:
+						if piece.is_active and piece.file==self.file-1 and piece.rank==self.rank+1 and piece.color!=self.color:
+							# there is a piece to jump
+							pos_left_jump_up = True
+					for piece in piece_list:
+						if piece.is_active and piece.file==self.file-2 and piece.rank==self.rank+2:
+							# there is a piece to jump
+							pos_left_jump_up = False
+
+
+				# if piece right and jump possible add
+				pos_right_jump_up = False
+				if self.file+2 < 9 and self.rank+2 < 9: # in range
+					for piece in piece_list:
+						if piece.is_active and piece.file==self.file+1 and piece.rank==self.rank+1 and piece.color!=self.color:
+							# there is a piece to jump
+							pos_right_jump_up = True
+					for piece in piece_list:
+						if piece.is_active and piece.file==self.file+2 and piece.rank==self.rank+2:
+							# there is a piece to jump
+							pos_right_jump_up = False
+
+				# DOWN
+
+				# if in range and no piece left
+				pos_left_move_down = False
+				if self.file-1 > 0 and self.rank-1 > 0: # in range
+					pos_left_move_down = True
+					for piece in piece_list:
+						if piece.is_active and piece.file==self.file-1 and piece.rank==self.rank-1:
+							# is a piece in the way
+							pos_left_move_down = False
+
+				# if in range and no piece right add
+				pos_right_move_down = False
+				if self.file+1 < 9 and self.rank-1 > 0: # in range
+					pos_right_move_down = True
+					for piece in piece_list:
+						if piece.is_active and piece.file==self.file+1 and piece.rank==self.rank-1:
+							# is a piece in the way
+							pos_right_move_down = False
+
+				# if piece left and jump possible add
+				pos_left_jump_down = False
+				if self.file-2 > 0 and self.rank-2 > 0: # in range
+					for piece in piece_list:
+						if piece.is_active and piece.file==self.file-1 and piece.rank==self.rank-1 and piece.color!=self.color:
+							# there is a piece to jump
+							pos_left_jump_down = True
+					for piece in piece_list:
+						if piece.is_active and piece.file==self.file-2 and piece.rank==self.rank-2:
+							# there is a piece to jump
+							pos_left_jump_down = False
+
+
+				# if piece right and jump possible add
+				pos_right_jump_down = False
+				if self.file+2 < 9 and self.rank-2 > 0: # in range
+					for piece in piece_list:
+						if piece.is_active and piece.file==self.file+1 and piece.rank==self.rank+1 and piece.color!=self.color:
+							# there is a piece to jump
+							pos_right_jump_down = True
+					for piece in piece_list:
+						if piece.is_active and piece.file==self.file+2 and piece.rank==self.rank-2:
+							# there is a piece to jump
+							pos_right_jump_down = False
+
+
+				if pos_left_move_up:
+					action_space[0, 0] = 1
+					coordinates.append([self.file-1, self.rank+1])
+				if pos_right_move_up:
+					action_space[0, 1] = 1
+					coordinates.append([self.file+1, self.rank+1])
+				if pos_left_jump_up:
+					action_space[0, 2] = 1
+					coordinates.append([self.file-2, self.rank+2])
+				if pos_right_jump_up:
+					action_space[0, 3] = 1
+					coordinates.append([self.file+2, self.rank+2])
+				if pos_left_move_down:
+					action_space[0, 4] = 1
+					coordinates.append([self.file-1, self.rank-1])
+				if pos_right_move_down:
+					action_space[0, 5] = 1
+					coordinates.append([self.file+1, self.rank-1])
+				if pos_left_jump_down:
+					action_space[0, 6] = 1
+					coordinates.append([self.file-2, self.rank-2])
+				if pos_right_jump_down:
+					action_space[0, 7] = 1
+					coordinates.append([self.file+2, self.rank-2])
+
+				# Convert coordinates to numpy array
+				coordinates = np.asarray(coordinates)
+
+			# Return possible moves
+			if return_coordinates:
+				return coordinates
+			else:
+				return action_space
+
+
+
+
 
 
 	def move(self, action, piece_list, print_move=False, algebraic=True):
@@ -486,40 +338,192 @@ class Bishop():
 		# Returns:	void
 
 		# Action vector:
-		# [1-7 +f/+r, 1-7 +f/-r, 1-7 -f/+r, 1-7 -f/-r, 28 zeros]
+		# [Forward left, Forward right, Jump Left, Jump Right, 52 zeros]
 
 		# Temporarily save old position for the purposes of algebraic notation
 		old_rank = self.rank
 		old_file = self.file
+########## WHTIE VS BLACK ##############
+		
+		if self.name == 'Piece':
 
-		# +f/+r movements
-		if 0 <= action < 7:
-			self.file = self.file + (action+1)
-			self.rank = self.rank + (action+1)
-		# +f/-r movements
-		elif 7 <= action < 14:
-			self.file = self.file + (action-6)
-			self.rank = self.rank - (action-6)
-		# -f/+r movements
-		elif 14 <= action < 21:
-			self.file = self.file - (action-13)
-			self.rank = self.rank + (action-13)
-		# -f/-r movements
+			# Is white
+			if self.color == 'white':
+				# left move
+				if action==0:
+					self.file = self.file-1
+					self.rank = self.rank+1
+				# right move
+				elif action==1:
+					self.file = self.file+1
+					self.rank = self.rank+1
+				# left jump
+				elif action==2:
+					self.file = self.file-2
+					self.rank = self.rank+2
+				# right jump
+				elif action==3:
+					self.file = self.file+2
+					self.rank = self.rank+2
+
+				# Update move counter
+				self.move_count += 1
+
+				# If a jump move, remove piece
+
+				piece_remove = False
+				if action==2:
+					piece_remove = True
+					for piece in piece_list:
+						if piece.is_active and piece.file==old_file-1 and piece.rank==old_rank+1:
+							piece.remove()
+							piece_remove = True
+							remove_name = piece.name
+							break
+
+				if action==3:
+					piece_remove = True
+					for piece in piece_list:
+						if piece.is_active and piece.file==old_file+1 and piece.rank==old_rank+1:
+							piece.remove()
+							piece_remove = True
+							remove_name = piece.name
+							break
+
+			# Is black
+			else:
+				# left move
+				if action==0:
+					self.file = self.file-1
+					self.rank = self.rank-1
+				# right move
+				elif action==1:
+					self.file = self.file+1
+					self.rank = self.rank-1
+				# left jump
+				elif action==2:
+					self.file = self.file-2
+					self.rank = self.rank-2
+				# right jump
+				else:
+					self.file = self.file+2
+					self.rank = self.rank-2
+
+				# Update move counter
+				self.move_count += 1
+
+				# If a jump move, remove piece
+
+				piece_remove = False
+				if action==2:
+					piece_remove = True
+					for piece in piece_list:
+						if piece.is_active and piece.file==old_file-1 and piece.rank==old_rank-1:
+							piece.remove()
+							piece_remove = True
+							remove_name = piece.name
+							break
+
+				if action==3:
+					piece_remove = True
+					for piece in piece_list:
+						if piece.is_active and piece.file==old_file+1 and piece.rank==old_rank-1:
+							piece.remove()
+							piece_remove = True
+							remove_name = piece.name
+							break
+
+				# Check for promotion
+				if self.color == 'white' and self.rank == 8:
+					self.name = 'King'
+					self.symbol = 'K'
+					self.value = 3
+
+				elif self.color == 'black' and self.rank == 1:
+					self.name = 'King'
+					self.symbol = 'K'
+					self.value = 3
+
+
+		# Is King
 		else:
-			self.file = self.file - (action-20)
-			self.rank = self.rank - (action-20)
 
-		# Update move counter
-		self.move_count += 1
+			# left move up
+			if action==0:
+				self.file = self.file-1
+				self.rank = self.rank+1
+			# right move up
+			elif action==1:
+				self.file = self.file+1
+				self.rank = self.rank+1
+			# left jump up
+			elif action==2:
+				self.file = self.file-2
+				self.rank = self.rank+2
+			# right jump up
+			elif action==3:
+				self.file = self.file+2
+				self.rank = self.rank+2
+			# left move down
+			elif action==4:
+				self.file = self.file-1
+				self.rank = self.rank-1
+			# right move down
+			elif action==5:
+				self.file = self.file+1
+				self.rank = self.rank-1
+			# left jump down
+			elif action==6:
+				self.file = self.file-2
+				self.rank = self.rank-2
+			# right jump down
+			else:
+				self.file = self.file+2
+				self.rank = self.rank-2
 
-		# If a piece was in the destination tile, remove the piece
-		piece_remove = False
-		for piece in piece_list:
-			if piece.is_active and piece.color != self.color and piece.file == self.file and piece.rank == self.rank:
-				piece.remove()
+			# Update move counter
+			self.move_count += 1
+
+			# If a jump move, remove piece
+
+			piece_remove = False
+			if action==2:
 				piece_remove = True
-				remove_name = piece.name
-				break
+				for piece in piece_list:
+					if piece.is_active and piece.file==old_file-1 and piece.rank==old_rank+1:
+						piece.remove()
+						piece_remove = True
+						remove_name = piece.name
+						break
+
+			if action==3:
+				piece_remove = True
+				for piece in piece_list:
+					if piece.is_active and piece.file==old_file+1 and piece.rank==old_rank+1:
+						piece.remove()
+						piece_remove = True
+						remove_name = piece.name
+						break
+
+			if action==6:
+				piece_remove = True
+				for piece in piece_list:
+					if piece.is_active and piece.file==old_file-1 and piece.rank==old_rank-1:
+						piece.remove()
+						piece_remove = True
+						remove_name = piece.name
+						break
+
+			if action==7:
+				piece_remove = True
+				for piece in piece_list:
+					if piece.is_active and piece.file==old_file+1 and piece.rank==old_rank-1:
+						piece.remove()
+						piece_remove = True
+						remove_name = piece.name
+						break
+
+
 
 		# Print movement if indicated
 		file_list = ['a','b','c','d','e','f','g','h']
