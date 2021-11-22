@@ -151,8 +151,6 @@ def generate_game(batch_size, max_moves, epsilon, visualize, print_move, algebra
             # Obtain action space
             action_space = s.action_space(pieces, player)
 
-            print(action_space)
-
             # ----------------------------------------------------
             # Value Function Approximation
             # ----------------------------------------------------
@@ -197,6 +195,11 @@ def generate_game(batch_size, max_moves, epsilon, visualize, print_move, algebra
                                             switch_player=True, print_move=print_move, algebraic=algebraic)
                         break
             # Else, act greedy w.r.t. expected return
+
+            # If no moves avalible
+            if np.any(return_array):
+                break
+
             else:
                 # Identify indices of maximum return (white) or minimum return (black)
                 if player == 'white':
